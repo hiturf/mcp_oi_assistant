@@ -1,3 +1,3 @@
-mcp[cli]
-PyYAML
-psutil
+mcp>=1.0.0
+PyYAML>=6.0
+psutil>=5.9.0
