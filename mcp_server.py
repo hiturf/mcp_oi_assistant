@@ -13,9 +13,9 @@ try:
     from mcp import types
     from mcp.server import Server
     import mcp.server.stdio
-except ImportError:
+except ImportError as e:
     print("请安装mcp包: pip install mcp", file=sys.stderr)
-    raise
+    raise ImportError("MCP包未安装") from e
 
 from runner import CodeRunner
 from security import SecurityManager
@@ -30,6 +30,16 @@ class CommandExecutor:
         """初始化命令执行器。"""
         self.security = security
         self.timeout_default = 30
+
+    def _handle_subprocess_error(self, error: Exception, cmd: str) -> Dict[str, Any]:
+        """处理子进程错误。"""
+        return {
+            'success': False,
+            'error': str(error),
+            'stdout': '',
+            'stderr': f'命令执行失败: {cmd}',
+            'returncode': -1
+        }
 
     def execute(
         self,
@@ -63,31 +73,24 @@ class CommandExecutor:
                 'stderr': result.stderr,
                 'returncode': result.returncode
             }
-        except subprocess.TimeoutExpired:
+        except subprocess.TimeoutExpired as e:
             return {
                 'success': False,
                 'error': f'执行超时（{timeout}秒）',
                 'stdout': '',
-                'stderr': '',
+                'stderr': str(e),
                 'returncode': -1
             }
-        except Exception as e:
-            return {
-                'success': False,
-                'error': str(e),
-                'stdout': '',
-                'stderr': '',
-                'returncode': -1
-            }
+        except (OSError, ValueError) as e:
+            return self._handle_subprocess_error(e, cmd)
 
 
 class ToolHandler:
     """工具处理器基类。"""
 
-    def __init__(self, executor: CommandExecutor, security: SecurityManager) -> None:
+    def __init__(self, executor: CommandExecutor) -> None:
         """初始化工具处理器。"""
         self.executor = executor
-        self.security = security
 
     def format_result(self, title: str, cmd: str, result: Dict[str, Any]) -> str:
         """格式化执行结果。"""
@@ -159,36 +162,38 @@ class DebugHandler(ToolHandler):
         executable = args.get("executable", "")
         commands = args.get("commands", "break main\nrun\nbacktrace\nquit")
 
-        script_file = self.security.get_secure_temp_path("gdb").with_suffix('.gdb')
-        script_file.write_text(commands, encoding='utf-8')
+        script_file = None
+        try:
+            script_file = self.executor.security.get_secure_temp_path("gdb").with_suffix('.gdb')
+            script_file.write_text(commands, encoding='utf-8')
 
-        cmd = f"gdb -x {script_file} {executable} --batch"
-        result = self.executor.execute(cmd, timeout=60)
+            cmd = f"gdb -x {script_file} {executable} --batch"
+            result = self.executor.execute(cmd, timeout=60)
 
-        if script_file.exists():
-            script_file.unlink()
+            lines = [
+                "## GDB 调试",
+                f"可执行文件: {executable}",
+                "调试脚本:",
+                "```gdb",
+                commands,
+                "```",
+                ""
+            ]
 
-        lines = [
-            "## GDB 调试",
-            f"可执行文件: {executable}",
-            "调试脚本:",
-            "```gdb",
-            commands,
-            "```",
-            ""
-        ]
+            if result['success']:
+                lines.append("✅ 调试完成")
+            else:
+                lines.append("❌ 调试失败")
 
-        if result['success']:
-            lines.append("✅ 调试完成")
-        else:
-            lines.append("❌ 调试失败")
+            if result.get('stdout'):
+                lines.extend(["调试输出:", "```", result['stdout'], "```"])
+            if result.get('stderr'):
+                lines.extend(["错误信息:", "```", result['stderr'], "```"])
 
-        if result.get('stdout'):
-            lines.extend(["调试输出:", "```", result['stdout'], "```"])
-        if result.get('stderr'):
-            lines.extend(["错误信息:", "```", result['stderr'], "```"])
-
-        return "\n".join(lines)
+            return "\n".join(lines)
+        finally:
+            if script_file and script_file.exists():
+                script_file.unlink()
 
 
 class BinaryHandler(ToolHandler):
@@ -290,9 +295,9 @@ class OIAssistantServer:
         self.security = SecurityManager()
         self.executor = CommandExecutor(self.security)
 
-        self.compile_handler = CompileHandler(self.executor, self.security)
-        self.debug_handler = DebugHandler(self.executor, self.security)
-        self.binary_handler = BinaryHandler(self.executor, self.security)
+        self.compile_handler = CompileHandler(self.executor)
+        self.debug_handler = DebugHandler(self.executor)
+        self.binary_handler = BinaryHandler(self.executor)
 
         self.server = Server("oi-assistant")
         self.setup_handlers()
@@ -570,11 +575,11 @@ class OIAssistantServer:
                     text=f"未知工具: {name}"
                 )]
 
-            except Exception as e:
+            except (ValueError, OSError) as e:
                 logger.exception("工具执行错误")
                 return [types.TextContent(
                     type="text",
-                    text=f"错误: {str(e)}"
+                    text=f"执行错误: {str(e)}"
                 )]
             finally:
                 self.sessions.pop(session_id, None)
