@@ -300,8 +300,8 @@ class OIAssistantServer:
         self.binary_handler = BinaryHandler(self.executor)
 
         self.server = Server("oi-assistant")
-        self.setup_handlers()
         self.sessions: Dict[str, Dict[str, Any]] = {}
+        self.setup_handlers()
 
     def setup_handlers(self) -> None:
         """注册MCP工具处理器。"""
@@ -309,236 +309,7 @@ class OIAssistantServer:
         @self.server.list_tools()
         async def handle_list_tools() -> List[types.Tool]:
             """列出所有可用工具。"""
-            return [
-                # 🎯 核心命令
-                types.Tool(
-                    name="g++",
-                    description="🎯 编译C++代码 - 最常用的编译命令",
-                    inputSchema={
-                        "type": "object",
-                        "properties": {
-                            "source_file": {
-                                "type": "string",
-                                "description": "源文件路径"
-                            },
-                            "output_file": {
-                                "type": "string",
-                                "description": "输出文件名"
-                            },
-                            "extra_flags": {
-                                "type": "string",
-                                "description": "额外编译选项",
-                                "default": ""
-                            }
-                        },
-                        "required": ["source_file", "output_file"]
-                    }
-                ),
-                types.Tool(
-                    name="gcc",
-                    description="🎯 编译C代码 - 用于C语言编程",
-                    inputSchema={
-                        "type": "object",
-                        "properties": {
-                            "source_file": {
-                                "type": "string",
-                                "description": "源文件路径"
-                            },
-                            "output_file": {
-                                "type": "string",
-                                "description": "输出文件名"
-                            },
-                            "extra_flags": {
-                                "type": "string",
-                                "description": "额外编译选项",
-                                "default": ""
-                            }
-                        },
-                        "required": ["source_file", "output_file"]
-                    }
-                ),
-                # 🔧 辅助命令
-                types.Tool(
-                    name="gdb",
-                    description="🔧 调试程序 - 单步执行、查看变量、设置断点",
-                    inputSchema={
-                        "type": "object",
-                        "properties": {
-                            "executable": {
-                                "type": "string",
-                                "description": "要调试的可执行文件"
-                            },
-                            "commands": {
-                                "type": "string",
-                                "description": "GDB命令",
-                                "default": "break main\nrun\nbacktrace\nquit"
-                            }
-                        },
-                        "required": ["executable"]
-                    }
-                ),
-                types.Tool(
-                    name="make",
-                    description="🔧 自动化编译 - 用于多文件项目",
-                    inputSchema={
-                        "type": "object",
-                        "properties": {
-                            "target": {
-                                "type": "string",
-                                "description": "make目标",
-                                "default": "all"
-                            },
-                            "makefile_dir": {
-                                "type": "string",
-                                "description": "Makefile所在目录",
-                                "default": "."
-                            },
-                            "extra_args": {
-                                "type": "string",
-                                "description": "额外参数",
-                                "default": ""
-                            }
-                        }
-                    }
-                ),
-                types.Tool(
-                    name="ld",
-                    description="🔧 链接器 - 处理链接错误时使用",
-                    inputSchema={
-                        "type": "object",
-                        "properties": {
-                            "object_files": {
-                                "type": "string",
-                                "description": "目标文件列表"
-                            },
-                            "output_file": {
-                                "type": "string",
-                                "description": "输出文件名"
-                            },
-                            "library_paths": {
-                                "type": "string",
-                                "description": "库路径",
-                                "default": ""
-                            },
-                            "libraries": {
-                                "type": "string",
-                                "description": "链接的库",
-                                "default": ""
-                            }
-                        },
-                        "required": ["object_files", "output_file"]
-                    }
-                ),
-                types.Tool(
-                    name="as",
-                    description="🔧 汇编器 - 将汇编代码转换为机器码",
-                    inputSchema={
-                        "type": "object",
-                        "properties": {
-                            "source_file": {
-                                "type": "string",
-                                "description": "汇编源文件"
-                            },
-                            "output_file": {
-                                "type": "string",
-                                "description": "输出目标文件",
-                                "default": ""
-                            }
-                        },
-                        "required": ["source_file"]
-                    }
-                ),
-                types.Tool(
-                    name="objdump",
-                    description="🔧 查看二进制信息 - 反汇编、查看段信息",
-                    inputSchema={
-                        "type": "object",
-                        "properties": {
-                            "file": {
-                                "type": "string",
-                                "description": "要分析的文件"
-                            },
-                            "options": {
-                                "type": "string",
-                                "description": "objdump选项",
-                                "default": "-d"
-                            }
-                        },
-                        "required": ["file"]
-                    }
-                ),
-                types.Tool(
-                    name="nm",
-                    description="🔧 列出符号表 - 查看目标文件中的函数和变量",
-                    inputSchema={
-                        "type": "object",
-                        "properties": {
-                            "file": {
-                                "type": "string",
-                                "description": "要分析的文件"
-                            },
-                            "options": {
-                                "type": "string",
-                                "description": "nm选项",
-                                "default": "-C"
-                            }
-                        },
-                        "required": ["file"]
-                    }
-                ),
-                types.Tool(
-                    name="compile_and_run",
-                    description="编译并运行C++代码（集成版）",
-                    inputSchema={
-                        "type": "object",
-                        "properties": {
-                            "code": {
-                                "type": "string",
-                                "description": "C++源代码"
-                            },
-                            "input": {
-                                "type": "string",
-                                "description": "输入数据"
-                            },
-                            "expected_output": {
-                                "type": "string",
-                                "description": "预期输出"
-                            },
-                            "filename": {
-                                "type": "string",
-                                "description": "文件名"
-                            }
-                        },
-                        "required": ["code", "input"]
-                    }
-                ),
-                types.Tool(
-                    name="compare_outputs",
-                    description="比较两个输出",
-                    inputSchema={
-                        "type": "object",
-                        "properties": {
-                            "actual": {
-                                "type": "string",
-                                "description": "实际输出"
-                            },
-                            "expected": {
-                                "type": "string",
-                                "description": "预期输出"
-                            },
-                            "ignore_whitespace": {
-                                "type": "boolean",
-                                "default": True
-                            },
-                            "ignore_case": {
-                                "type": "boolean",
-                                "default": False
-                            }
-                        },
-                        "required": ["actual", "expected"]
-                    }
-                )
-            ]
+            return self._create_tool_list()
 
         @self.server.call_tool()
         async def handle_call_tool(name: str, args: Dict[str, Any]) -> List[types.TextContent]:
@@ -550,32 +321,8 @@ class OIAssistantServer:
             }
 
             try:
-                handlers = {
-                    "g++": self.compile_handler.handle_gpp,
-                    "gcc": self.compile_handler.handle_gcc,
-                    "make": self.compile_handler.handle_make,
-                    "gdb": self.debug_handler.handle_gdb,
-                    "ld": self.binary_handler.handle_ld,
-                    "as": self.binary_handler.handle_as,
-                    "objdump": self.binary_handler.handle_objdump,
-                    "nm": self.binary_handler.handle_nm,
-                }
-
-                if name in handlers:
-                    result = await handlers[name](args)
-                    return [types.TextContent(type="text", text=result)]
-
-                if name == "compile_and_run":
-                    return await self._handle_compile_and_run(args, session_id)
-                if name == "compare_outputs":
-                    return await self._handle_compare_outputs(args)
-
-                return [types.TextContent(
-                    type="text",
-                    text=f"未知工具: {name}"
-                )]
-
-            except (ValueError, OSError) as e:
+                return await self._route_tool_call(name, args, session_id)
+            except (ValueError, OSError, subprocess.TimeoutExpired) as e:
                 logger.exception("工具执行错误")
                 return [types.TextContent(
                     type="text",
@@ -583,6 +330,271 @@ class OIAssistantServer:
                 )]
             finally:
                 self.sessions.pop(session_id, None)
+
+    def _create_tool_list(self) -> List[types.Tool]:
+        """创建工具列表。"""
+        return [
+            # 🎯 核心命令
+            types.Tool(
+                name="g++",
+                description="🎯 编译C++代码 - 最常用的编译命令",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "source_file": {
+                            "type": "string",
+                            "description": "源文件路径"
+                        },
+                        "output_file": {
+                            "type": "string",
+                            "description": "输出文件名"
+                        },
+                        "extra_flags": {
+                            "type": "string",
+                            "description": "额外编译选项",
+                            "default": ""
+                        }
+                    },
+                    "required": ["source_file", "output_file"]
+                }
+            ),
+            types.Tool(
+                name="gcc",
+                description="🎯 编译C代码 - 用于C语言编程",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "source_file": {
+                            "type": "string",
+                            "description": "源文件路径"
+                        },
+                        "output_file": {
+                            "type": "string",
+                            "description": "输出文件名"
+                        },
+                        "extra_flags": {
+                            "type": "string",
+                            "description": "额外编译选项",
+                            "default": ""
+                        }
+                    },
+                    "required": ["source_file", "output_file"]
+                }
+            ),
+            # 🔧 辅助命令
+            types.Tool(
+                name="gdb",
+                description="🔧 调试程序 - 单步执行、查看变量、设置断点",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "executable": {
+                            "type": "string",
+                            "description": "要调试的可执行文件"
+                        },
+                        "commands": {
+                            "type": "string",
+                            "description": "GDB命令",
+                            "default": "break main\nrun\nbacktrace\nquit"
+                        }
+                    },
+                    "required": ["executable"]
+                }
+            ),
+            types.Tool(
+                name="make",
+                description="🔧 自动化编译 - 用于多文件项目",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "target": {
+                            "type": "string",
+                            "description": "make目标",
+                            "default": "all"
+                        },
+                        "makefile_dir": {
+                            "type": "string",
+                            "description": "Makefile所在目录",
+                            "default": "."
+                        },
+                        "extra_args": {
+                            "type": "string",
+                            "description": "额外参数",
+                            "default": ""
+                        }
+                    }
+                }
+            ),
+            types.Tool(
+                name="ld",
+                description="🔧 链接器 - 处理链接错误时使用",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "object_files": {
+                            "type": "string",
+                            "description": "目标文件列表"
+                        },
+                        "output_file": {
+                            "type": "string",
+                            "description": "输出文件名"
+                        },
+                        "library_paths": {
+                            "type": "string",
+                            "description": "库路径",
+                            "default": ""
+                        },
+                        "libraries": {
+                            "type": "string",
+                            "description": "链接的库",
+                            "default": ""
+                        }
+                    },
+                    "required": ["object_files", "output_file"]
+                }
+            ),
+            types.Tool(
+                name="as",
+                description="🔧 汇编器 - 将汇编代码转换为机器码",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "source_file": {
+                            "type": "string",
+                            "description": "汇编源文件"
+                        },
+                        "output_file": {
+                            "type": "string",
+                            "description": "输出目标文件",
+                            "default": ""
+                        }
+                    },
+                    "required": ["source_file"]
+                }
+            ),
+            types.Tool(
+                name="objdump",
+                description="🔧 查看二进制信息 - 反汇编、查看段信息",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "file": {
+                            "type": "string",
+                            "description": "要分析的文件"
+                        },
+                        "options": {
+                            "type": "string",
+                            "description": "objdump选项",
+                            "default": "-d"
+                        }
+                    },
+                    "required": ["file"]
+                }
+            ),
+            types.Tool(
+                name="nm",
+                description="🔧 列出符号表 - 查看目标文件中的函数和变量",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "file": {
+                            "type": "string",
+                            "description": "要分析的文件"
+                        },
+                        "options": {
+                            "type": "string",
+                            "description": "nm选项",
+                            "default": "-C"
+                        }
+                    },
+                    "required": ["file"]
+                }
+            ),
+            types.Tool(
+                name="compile_and_run",
+                description="编译并运行C++代码（集成版）",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "code": {
+                            "type": "string",
+                            "description": "C++源代码"
+                        },
+                        "input": {
+                            "type": "string",
+                            "description": "输入数据"
+                        },
+                        "expected_output": {
+                            "type": "string",
+                            "description": "预期输出"
+                        },
+                        "filename": {
+                            "type": "string",
+                            "description": "文件名"
+                        }
+                    },
+                    "required": ["code", "input"]
+                }
+            ),
+            types.Tool(
+                name="compare_outputs",
+                description="比较两个输出",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "actual": {
+                            "type": "string",
+                            "description": "实际输出"
+                        },
+                        "expected": {
+                            "type": "string",
+                            "description": "预期输出"
+                        },
+                        "ignore_whitespace": {
+                            "type": "boolean",
+                            "default": True
+                        },
+                        "ignore_case": {
+                            "type": "boolean",
+                            "default": False
+                        }
+                    },
+                    "required": ["actual", "expected"]
+                }
+            )
+        ]
+
+    async def _route_tool_call(
+        self,
+        name: str,
+        args: Dict[str, Any],
+        session_id: str
+    ) -> List[types.TextContent]:
+        """路由工具调用到对应的处理器。"""
+        handlers = {
+            "g++": self.compile_handler.handle_gpp,
+            "gcc": self.compile_handler.handle_gcc,
+            "make": self.compile_handler.handle_make,
+            "gdb": self.debug_handler.handle_gdb,
+            "ld": self.binary_handler.handle_ld,
+            "as": self.binary_handler.handle_as,
+            "objdump": self.binary_handler.handle_objdump,
+            "nm": self.binary_handler.handle_nm,
+        }
+
+        if name in handlers:
+            result = await handlers[name](args)
+            return [types.TextContent(type="text", text=result)]
+
+        if name == "compile_and_run":
+            return await self._handle_compile_and_run(args, session_id)
+        if name == "compare_outputs":
+            return await self._handle_compare_outputs(args)
+
+        return [types.TextContent(
+            type="text",
+            text=f"未知工具: {name}"
+        )]
 
     async def _handle_compile_and_run(
         self,
