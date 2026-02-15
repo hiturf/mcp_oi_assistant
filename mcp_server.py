@@ -4,13 +4,17 @@ import asyncio
 import sys
 import time
 from typing import Any, Dict, List
+from logging import getLogger
 
+# MCP imports
+from mcp import types
 from mcp.server import Server
 import mcp.server.stdio
-import mcp.types as types
 
 from runner import CodeRunner
 from security import SecurityManager
+
+logger = getLogger(__name__)
 
 
 class OIAssistantServer:
@@ -20,13 +24,13 @@ class OIAssistantServer:
         """初始化服务器、运行器和安全管理器。"""
         self.runner = CodeRunner()
         self.security = SecurityManager()
-        # 修复1：Server 构造函数只接受名称参数，不支持 capabilities
         self.server = Server("oi-assistant")
         self.setup_handlers()
         self.sessions: Dict[str, Dict[str, Any]] = {}
 
     def setup_handlers(self) -> None:
         """注册MCP工具处理器。"""
+
         @self.server.list_tools()
         async def handle_list_tools() -> List[types.Tool]:
             return [
@@ -36,12 +40,30 @@ class OIAssistantServer:
                     inputSchema={
                         "type": "object",
                         "properties": {
-                            "code": {"type": "string", "description": "C++源代码"},
-                            "input": {"type": "string", "description": "输入数据"},
-                            "expected_output": {"type": "string", "description": "预期输出（可选）"},
-                            "filename": {"type": "string", "description": "文件名（可选）"},
-                            "time_limit": {"type": "integer", "description": "时间限制（毫秒）"},
-                            "memory_limit": {"type": "integer", "description": "内存限制（MB）"}
+                            "code": {
+                                "type": "string",
+                                "description": "C++源代码"
+                            },
+                            "input": {
+                                "type": "string",
+                                "description": "输入数据"
+                            },
+                            "expected_output": {
+                                "type": "string",
+                                "description": "预期输出（可选）"
+                            },
+                            "filename": {
+                                "type": "string",
+                                "description": "文件名（可选）"
+                            },
+                            "time_limit": {
+                                "type": "integer",
+                                "description": "时间限制（毫秒）"
+                            },
+                            "memory_limit": {
+                                "type": "integer",
+                                "description": "内存限制（MB）"
+                            }
                         },
                         "required": ["code", "input"]
                     }
@@ -52,8 +74,14 @@ class OIAssistantServer:
                     inputSchema={
                         "type": "object",
                         "properties": {
-                            "code": {"type": "string", "description": "C++源代码"},
-                            "gdb_script": {"type": "string", "description": "GDB调试脚本（可选）"}
+                            "code": {
+                                "type": "string",
+                                "description": "C++源代码"
+                            },
+                            "gdb_script": {
+                                "type": "string",
+                                "description": "GDB调试脚本（可选）"
+                            }
                         },
                         "required": ["code"]
                     }
@@ -64,10 +92,24 @@ class OIAssistantServer:
                     inputSchema={
                         "type": "object",
                         "properties": {
-                            "actual": {"type": "string", "description": "实际输出"},
-                            "expected": {"type": "string", "description": "预期输出"},
-                            "ignore_whitespace": {"type": "boolean", "description": "是否忽略空白字符", "default": True},
-                            "ignore_case": {"type": "boolean", "description": "是否忽略大小写", "default": False}
+                            "actual": {
+                                "type": "string",
+                                "description": "实际输出"
+                            },
+                            "expected": {
+                                "type": "string",
+                                "description": "预期输出"
+                            },
+                            "ignore_whitespace": {
+                                "type": "boolean",
+                                "description": "是否忽略空白字符",
+                                "default": True
+                            },
+                            "ignore_case": {
+                                "type": "boolean",
+                                "description": "是否忽略大小写",
+                                "default": False
+                            }
                         },
                         "required": ["actual", "expected"]
                     }
@@ -78,7 +120,10 @@ class OIAssistantServer:
                     inputSchema={
                         "type": "object",
                         "properties": {
-                            "test_case_id": {"type": "string", "description": "测试用例ID"}
+                            "test_case_id": {
+                                "type": "string",
+                                "description": "测试用例ID"
+                            }
                         },
                         "required": ["test_case_id"]
                     }
@@ -86,7 +131,10 @@ class OIAssistantServer:
             ]
 
         @self.server.call_tool()
-        async def handle_call_tool(name: str, arguments: Dict[str, Any]) -> List[types.TextContent]:
+        async def handle_call_tool(
+            name: str,
+            arguments: Dict[str, Any]
+        ) -> List[types.TextContent]:
             """分发工具调用请求。"""
             session_id = f"session_{int(time.time())}_{hash(str(arguments)) % 10000}"
             self.sessions[session_id] = {
@@ -97,21 +145,30 @@ class OIAssistantServer:
             try:
                 if name == "compile_and_run":
                     return await self._handle_compile_and_run(arguments, session_id)
-                elif name == "debug_with_gdb":
+                if name == "debug_with_gdb":
                     return await self._handle_debug_with_gdb(arguments, session_id)
-                elif name == "compare_outputs":
+                if name == "compare_outputs":
                     return await self._handle_compare_outputs(arguments)
-                elif name == "read_test_case":
+                if name == "read_test_case":
                     return await self._handle_read_test_case(arguments)
-                else:
-                    return [types.TextContent(type="text", text=f"未知工具: {name}")]
+                return [types.TextContent(type="text", text=f"未知工具: {name}")]
+            except ValueError as e:
+                logger.exception("参数错误")
+                return [types.TextContent(type="text", text=f"参数错误: {str(e)}")]
+            except OSError as e:
+                logger.exception("系统错误")
+                return [types.TextContent(type="text", text=f"系统错误: {str(e)}")]
             except Exception as e:
-                print(f"工具执行错误: {e}", file=sys.stderr)
+                logger.exception("未知错误")
                 return [types.TextContent(type="text", text=f"工具执行错误: {str(e)}")]
             finally:
                 self.sessions.pop(session_id, None)
 
-    async def _handle_compile_and_run(self, arguments: Dict[str, Any], session_id: str) -> List[types.TextContent]:
+    async def _handle_compile_and_run(
+        self,
+        arguments: Dict[str, Any],
+        session_id: str
+    ) -> List[types.TextContent]:
         """处理编译运行请求。"""
         code = arguments.get("code", "")
         input_data = arguments.get("input", "")
@@ -120,48 +177,76 @@ class OIAssistantServer:
         time_limit = arguments.get("time_limit")
         memory_limit = arguments.get("memory_limit")
 
-        result_lines = [f"## 编译与运行报告\n会话ID: {session_id}\n文件名: {filename}\n"]
+        result_lines = [
+            f"## 编译与运行报告",
+            f"会话ID: {session_id}",
+            f"文件名: {filename}",
+            ""
+        ]
 
         # 1. 编译
-        result_lines.append("\n### 1. 编译阶段")
+        result_lines.append("### 1. 编译阶段")
         compile_result = self.runner.compile_cpp(code, filename)
         if compile_result['success']:
             result_lines.append("✅ 编译成功")
             if compile_result['output']:
-                result_lines.append(f"编译输出:\n```\n{compile_result['output']}\n```")
+                result_lines.extend([
+                    "编译输出:",
+                    "```",
+                    compile_result['output'],
+                    "```"
+                ])
         else:
             result_lines.append("❌ 编译失败")
             if compile_result['error']:
-                result_lines.append(f"错误信息:\n```\n{compile_result['error']}\n```")
-            return [types.TextContent(type="text", text="\n".join(result_lines))]
+                result_lines.extend([
+                    "错误信息:",
+                    "```",
+                    compile_result['error'],
+                    "```"
+                ])
+            return [types.TextContent(
+                type="text",
+                text="\n".join(result_lines)
+            )]
 
         # 2. 运行
-        result_lines.append("\n### 2. 运行阶段")
+        result_lines.append("")
+        result_lines.append("### 2. 运行阶段")
         run_result = self.runner.run_with_input(
             compile_result['executable'],
             input_data,
             time_limit,
             memory_limit
         )
-        result_lines.append(f"运行状态: {'✅ 成功' if run_result['success'] else '❌ 失败'}")
+        result_lines.append(
+            f"运行状态: {'✅ 成功' if run_result['success'] else '❌ 失败'}"
+        )
         result_lines.append(f"时间消耗: {run_result['time_used']}ms")
         result_lines.append(f"内存使用: {run_result['memory_used']}KB")
         result_lines.append(f"退出代码: {run_result['exit_code']}")
 
         if run_result['output']:
-            result_lines.append("\n程序输出:")
-            result_lines.append("```")
-            result_lines.append(run_result['output'])
-            result_lines.append("```")
+            result_lines.extend([
+                "",
+                "程序输出:",
+                "```",
+                run_result['output'],
+                "```"
+            ])
         if run_result['error']:
-            result_lines.append("\n错误输出:")
-            result_lines.append("```")
-            result_lines.append(run_result['error'])
-            result_lines.append("```")
+            result_lines.extend([
+                "",
+                "错误输出:",
+                "```",
+                run_result['error'],
+                "```"
+            ])
 
         # 3. 输出比较
         if expected_output:
-            result_lines.append("\n### 3. 输出比较")
+            result_lines.append("")
+            result_lines.append("### 3. 输出比较")
             compare_result = self.runner.compare_outputs(
                 run_result['output'] or "",
                 expected_output
@@ -170,74 +255,132 @@ class OIAssistantServer:
                 result_lines.append("✅ 输出完全匹配！")
             else:
                 result_lines.append("❌ 输出不匹配")
-                result_lines.append(f"实际行数: {compare_result['actual_line_count']}")
-                result_lines.append(f"预期行数: {compare_result['expected_line_count']}")
+                result_lines.append(
+                    f"实际行数: {compare_result['actual_line_count']}"
+                )
+                result_lines.append(
+                    f"预期行数: {compare_result['expected_line_count']}"
+                )
                 for diff in compare_result['differences'][:5]:
                     result_lines.append(f"第{diff['line']}行:")
                     result_lines.append(f"  实际: {diff['actual']}")
                     result_lines.append(f"  预期: {diff['expected']}")
                 if len(compare_result['differences']) > 5:
-                    result_lines.append(f"... 还有{len(compare_result['differences']) - 5}处差异未显示")
+                    result_lines.append(
+                        f"... 还有{len(compare_result['differences']) - 5}处差异未显示"
+                    )
 
         # 4. 文件信息
         temp_dir = self.security.temp_dir
-        result_lines.append("\n### 4. 文件信息")
+        result_lines.append("")
+        result_lines.append("### 4. 文件信息")
         result_lines.append(f"源代码: `{temp_dir}/sources/{filename}.cpp`")
         result_lines.append(f"可执行文件: `{temp_dir}/execute/{filename}.exe`")
         result_lines.append(f"输入文件: `{temp_dir}/inputs/{session_id}.in`")
         result_lines.append(f"输出文件: `{temp_dir}/outputs/{session_id}.out`")
 
-        return [types.TextContent(type="text", text="\n".join(result_lines))]
+        return [types.TextContent(
+            type="text",
+            text="\n".join(result_lines)
+        )]
 
-    async def _handle_debug_with_gdb(self, arguments: Dict[str, Any], session_id: str) -> List[types.TextContent]:
+    async def _handle_debug_with_gdb(
+        self,
+        arguments: Dict[str, Any],
+        session_id: str
+    ) -> List[types.TextContent]:
         """处理GDB调试请求。"""
         code = arguments.get("code", "")
         gdb_script = arguments.get("gdb_script")
         filename = f"debug_{session_id}"
         compile_result = self.runner.compile_cpp(code, filename)
+
         if not compile_result['success']:
-            return [types.TextContent(type="text", text=f"编译失败，无法调试:\n{compile_result['error']}")]
+            return [types.TextContent(
+                type="text",
+                text=f"编译失败，无法调试:\n{compile_result['error']}"
+            )]
 
         gdb_result = self.runner.run_gdb(compile_result['executable'], gdb_script)
-        result_lines = [f"## GDB调试报告\n会话ID: {session_id}\n"]
+        result_lines = [
+            f"## GDB调试报告",
+            f"会话ID: {session_id}",
+            ""
+        ]
+
         if gdb_result['success']:
             result_lines.append("✅ 调试完成")
             if gdb_result['output']:
-                result_lines.append("**GDB输出**:")
-                result_lines.append("```")
-                result_lines.append(gdb_result['output'])
-                result_lines.append("```")
+                result_lines.extend([
+                    "**GDB输出**:",
+                    "```",
+                    gdb_result['output'],
+                    "```"
+                ])
         else:
             result_lines.append("❌ 调试失败")
             if gdb_result['error']:
-                result_lines.append(f"错误信息:\n```\n{gdb_result['error']}\n```")
-        return [types.TextContent(type="text", text="\n".join(result_lines))]
+                result_lines.extend([
+                    "错误信息:",
+                    "```",
+                    gdb_result['error'],
+                    "```"
+                ])
 
-    async def _handle_compare_outputs(self, arguments: Dict[str, Any]) -> List[types.TextContent]:
+        return [types.TextContent(
+            type="text",
+            text="\n".join(result_lines)
+        )]
+
+    async def _handle_compare_outputs(
+        self,
+        arguments: Dict[str, Any]
+    ) -> List[types.TextContent]:
         """处理输出比较请求。"""
         actual = arguments.get("actual", "")
         expected = arguments.get("expected", "")
         ignore_whitespace = arguments.get("ignore_whitespace", True)
         ignore_case = arguments.get("ignore_case", False)
 
-        compare_result = self.runner.compare_outputs(actual, expected, ignore_whitespace, ignore_case)
-        result_lines = ["## 输出比较结果\n"]
+        compare_result = self.runner.compare_outputs(
+            actual,
+            expected,
+            ignore_whitespace,
+            ignore_case
+        )
+        result_lines = ["## 输出比较结果", ""]
+
         if compare_result['match']:
             result_lines.append("✅ 输出完全匹配！")
         else:
             result_lines.append("❌ 输出不匹配")
-            result_lines.append(f"实际行数: {compare_result['actual_line_count']}")
-            result_lines.append(f"预期行数: {compare_result['expected_line_count']}")
+            result_lines.append(
+                f"实际行数: {compare_result['actual_line_count']}"
+            )
+            result_lines.append(
+                f"预期行数: {compare_result['expected_line_count']}"
+            )
             result_lines.append("差异详情:")
+
             for diff in compare_result['differences'][:10]:
                 result_lines.append(f"第{diff['line']}行:")
                 result_lines.append(f"   实际: `{diff['actual']}`")
                 result_lines.append(f"   预期: `{diff['expected']}`")
-            if len(compare_result['differences']) > 10:
-                result_lines.append(f"... 还有{len(compare_result['differences']) - 10}处差异未显示")
-        return [types.TextContent(type="text", text="\n".join(result_lines))]
 
-    async def _handle_read_test_case(self, arguments: Dict[str, Any]) -> List[types.TextContent]:
+            if len(compare_result['differences']) > 10:
+                result_lines.append(
+                    f"... 还有{len(compare_result['differences']) - 10}处差异未显示"
+                )
+
+        return [types.TextContent(
+            type="text",
+            text="\n".join(result_lines)
+        )]
+
+    async def _handle_read_test_case(
+        self,
+        arguments: Dict[str, Any]
+    ) -> List[types.TextContent]:
         """读取测试用例文件（支持预定义和自定义文件）。"""
         test_case_id = arguments.get("test_case_id", "")
         safe_id = self.security.sanitize_filename(test_case_id)
@@ -274,17 +417,24 @@ class OIAssistantServer:
             try:
                 if test_file.exists():
                     content = test_file.read_text(encoding='utf-8')
-                    result_lines = [f"## 测试用例文件: {test_case_id}", "```", content, "```"]
+                    result_lines = [
+                        f"## 测试用例文件: {test_case_id}",
+                        "```",
+                        content,
+                        "```"
+                    ]
                 else:
                     result_lines = [f"未找到测试用例: {test_case_id}"]
             except (IOError, OSError) as e:
                 result_lines = [f"读取测试用例文件失败: {str(e)}"]
 
-        return [types.TextContent(type="text", text="\n".join(result_lines))]
+        return [types.TextContent(
+            type="text",
+            text="\n".join(result_lines)
+        )]
 
     async def run(self) -> None:
         """启动MCP服务器。"""
-        # 修复2：正确的运行方式
         async with mcp.server.stdio.stdio_server() as (read_stream, write_stream):
             await self.server.run(
                 read_stream,

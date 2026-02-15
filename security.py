@@ -18,8 +18,11 @@ class SecurityManager:
         try:
             with open(config_path, 'r', encoding='utf-8') as f:
                 self.config = yaml.safe_load(f)
-        except FileNotFoundError:
-            raise FileNotFoundError(f"配置文件 {config_path} 未找到")
+        except FileNotFoundError as exc:
+            raise FileNotFoundError(
+                f"配置文件 {config_path} 未找到"
+            ) from exc
+
         self.temp_dir = Path(self.config['paths']['temp_dir']).resolve()
         self.mingw_dir = Path(self.config['paths']['mingw_dir']).resolve()
         self.create_secure_directories()
@@ -59,11 +62,13 @@ class SecurityManager:
             resolved = Path(path).resolve()
             temp_resolved = self.temp_dir.resolve()
             mingw_resolved = self.mingw_dir.resolve()
-            if (str(resolved).startswith(str(temp_resolved)) or
-                str(resolved).startswith(str(mingw_resolved))):
+            if (
+                str(resolved).startswith(str(temp_resolved)) or
+                str(resolved).startswith(str(mingw_resolved))
+            ):
                 return True, resolved
             return False, None
-        except Exception:
+        except (OSError, ValueError):
             return False, None
 
     def validate_command(self, command: str) -> bool:
