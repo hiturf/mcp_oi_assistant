@@ -7,7 +7,7 @@ from typing import Any, Dict, List
 
 from mcp.server import Server
 import mcp.server.stdio
-import mcp.types as types
+from mcp import types
 
 from runner import CodeRunner
 from security import SecurityManager
@@ -132,21 +132,20 @@ class OIAssistantServer:
             try:
                 if name == "compile_and_run":
                     return await self._handle_compile_and_run(arguments, session_id)
-                elif name == "debug_with_gdb":
+                if name == "debug_with_gdb":
                     return await self._handle_debug_with_gdb(arguments, session_id)
-                elif name == "compare_outputs":
+                if name == "compare_outputs":
                     return await self._handle_compare_outputs(arguments)
-                elif name == "read_test_case":
+                if name == "read_test_case":
                     return await self._handle_read_test_case(arguments)
-                else:
-                    return [types.TextContent(type="text", text=f"未知工具: {name}")]
+                return [types.TextContent(type="text", text=f"未知工具: {name}")]
             except Exception as exc:  # pylint: disable=broad-exception-caught
                 print(f"工具执行错误: {exc}", file=sys.stderr)
                 return [types.TextContent(type="text", text=f"工具执行错误: {str(exc)}")]
             finally:
                 self.sessions.pop(session_id, None)
 
-    async def _handle_compile_and_run(
+    async def _handle_compile_and_run(  # pylint: disable=too-many-locals,too-many-statements
         self,
         arguments: Dict[str, Any],
         session_id: str,

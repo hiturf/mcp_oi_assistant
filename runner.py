@@ -101,7 +101,7 @@ class CodeRunner:
         except OSError:
             return 0
 
-    def run_with_input(  # pylint: disable=subprocess-popen-preexec-fn
+    def run_with_input(  # pylint: disable=subprocess-popen-preexec-fn,too-many-locals,too-many-statements
         self,
         executable: str,
         input_data: str,
@@ -148,7 +148,7 @@ class CodeRunner:
 
             with open(input_file, 'r', encoding='utf-8') as infile:
                 with open(output_file, 'w', encoding='utf-8') as outfile:
-                    process = subprocess.Popen(
+                    process = subprocess.Popen(  # pylint: disable=consider-using-with
                         [executable],
                         stdin=infile,
                         stdout=outfile,
